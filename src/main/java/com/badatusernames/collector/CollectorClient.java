@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -12,16 +13,23 @@ import net.minecraft.world.RaycastContext;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.Registries;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.io.File;
+import java.io.IOException;
+
+
 
 public class CollectorClient implements ClientModInitializer {
     private int tickCounter = 0;
     private Map<String, Integer> blockstateMap = null;
+    private long startTime = 0;
     @Override
     public void onInitializeClient() {
+        startTime = System.currentTimeMillis();
         blockstateMap = createBlockStateMapping();
 
         // End of tick actions
@@ -32,12 +40,33 @@ public class CollectorClient implements ClientModInitializer {
             if (tickCounter >= 20) {
                 tickCounter = 0;
                 // Actions that are performed every second
-                gatherBlockRecognitionData();
+                BlockLabel label = getRecognitionLabel();
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                String fileName = "screenshot_" + elapsedTime + ".png";
+                // TODO output block distance and id to file. Implement c++ screenshot code, take screenshot based on socket communication.
             }
         });
     }
 
-    public void gatherBlockRecognitionData() {
+    public class BlockLabel {
+        private final Integer blockStateId;
+        private final double distance;
+
+        public BlockLabel(Integer blockStateId, double distance) {
+            this.blockStateId = blockStateId;
+            this.distance = distance;
+        }
+
+        public Integer getBlockStateId() {
+            return blockStateId;
+        }
+
+        public double getDistance() {
+            return distance;
+        }
+    }
+
+    public BlockLabel getRecognitionLabel() {
         MinecraftClient client = MinecraftClient.getInstance();
 
         // Get the player's eye position, which is the starting point for ray tracing
@@ -58,6 +87,7 @@ public class CollectorClient implements ClientModInitializer {
                 client.player
         ));
 
+        BlockLabel label = new BlockLabel(-1, -1);
         // Check if a block was hit
         if (hitResult.getType() == BlockHitResult.Type.BLOCK) {
             BlockPos blockPos = hitResult.getBlockPos();
@@ -66,8 +96,23 @@ public class CollectorClient implements ClientModInitializer {
             // Calculate the distance from the player to the block
             double distance = eyePosition.distanceTo(new Vec3d(blockPos.getX(), blockPos.getY(), blockPos.getZ()));
 
-            // TODO convert BlockStates into ids, and store the BlockState distance pair
+            // Convert BlockState to its string representation
+            String blockStateString = blockState.toString();
+
+            // Get the ID from the map
+            Integer blockStateId = blockstateMap.get(blockStateString);
+
+            if (blockStateId != null) {
+                // Here you can store or process the blockStateId and distance pair
+                // For example, you might want to print it for now
+                System.out.println("BlockState ID: " + blockStateId + ", Blockstate string: " + blockStateString + ", Distance: " + distance);
+                label = new BlockLabel(blockStateId, distance);
+            } else {
+                // Handle the case where the block state is not found in the map
+                System.out.println("BlockState not found in the map for: " + blockStateString);
+            }
         }
+        return label;
     }
 
     public Map<String, Integer> createBlockStateMapping() {
