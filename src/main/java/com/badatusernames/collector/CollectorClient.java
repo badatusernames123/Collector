@@ -13,14 +13,21 @@ import net.minecraft.world.RaycastContext;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.Registries;
 
+import java.io.FileWriter;
+import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+
+import com.badatusernames.collector.CollectorClient.BlockLabel;
+
 import java.io.File;
 import java.io.IOException;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 
 public class CollectorClient implements ClientModInitializer {
@@ -43,7 +50,18 @@ public class CollectorClient implements ClientModInitializer {
                 BlockLabel label = getRecognitionLabel();
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 String fileName = "screenshot_" + elapsedTime + ".png";
-                // TODO output block distance and id to file. Implement c++ screenshot code, take screenshot based on socket communication.
+                // TODO output block distance and id to file. Implement python screenshot code, take screenshot based on socket communication.
+                try {
+                    InetAddress inetAddress = InetAddress.getLocalHost();
+                    String ipAddress = inetAddress.getHostAddress();
+                    SocketClient sockClient = new SocketClient(ipAddress, 5050); // use the appropriate IP and port
+                    sockClient.startConnection();
+                    sockClient.sendMessage("Block Recognition - BlockState ID: " + label.getBlockStateId() + ", Distance: " + label.getDistance());
+                    sockClient.sendMessage("Take Screenshot");
+                    sockClient.stopConnection();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         });
     }
@@ -107,6 +125,7 @@ public class CollectorClient implements ClientModInitializer {
                 // For example, you might want to print it for now
                 System.out.println("BlockState ID: " + blockStateId + ", Blockstate string: " + blockStateString + ", Distance: " + distance);
                 label = new BlockLabel(blockStateId, distance);
+                writeToCSV(blockStateId, distance);
             } else {
                 // Handle the case where the block state is not found in the map
                 System.out.println("BlockState not found in the map for: " + blockStateString);
@@ -126,5 +145,21 @@ public class CollectorClient implements ClientModInitializer {
             }
         }
         return stateMap;
+    }
+
+    private void writeToCSV(int blockId, double distance) {
+        // Specify the file path for your CSV file
+        String filePath = "block_data.csv";
+
+        try (FileWriter fileWriter = new FileWriter(filePath, true);
+             PrintWriter printWriter = new PrintWriter(fileWriter)) {
+
+            // Format and write the data as a new line in your CSV file
+            printWriter.printf("%d,%.2f%n", blockId, distance);
+
+        } catch (IOException e) {
+            System.out.println("An error occurred while writing to CSV file.");
+            e.printStackTrace();
+        }
     }
 }

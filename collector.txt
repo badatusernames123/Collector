@@ -1,0 +1,5 @@
+Block recognition:
+	Input: minecraft first person player image
+	Output: blockstate and distance
+	Collector needs to collect input output pairs
+
