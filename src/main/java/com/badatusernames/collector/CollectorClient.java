@@ -1,6 +1,7 @@
 package com.badatusernames.collector;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 
 import net.minecraft.block.Block;
@@ -34,10 +35,21 @@ public class CollectorClient implements ClientModInitializer {
     private int tickCounter = 0;
     private Map<String, Integer> blockstateMap = null;
     private long startTime = 0;
+    private SocketClient sockClient = null;
     @Override
     public void onInitializeClient() {
         startTime = System.currentTimeMillis();
         blockstateMap = createBlockStateMapping();
+
+        // Connect to socket server
+        try {
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            String ipAddress = inetAddress.getHostAddress();
+            sockClient = new SocketClient(ipAddress, 5050);
+            sockClient.startConnection();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         // End of tick actions
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -46,21 +58,34 @@ public class CollectorClient implements ClientModInitializer {
             tickCounter++;
             if (tickCounter >= 20) {
                 tickCounter = 0;
+                long tickStartTime = System.nanoTime();
                 // Actions that are performed every second
                 BlockLabel label = getRecognitionLabel();
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 String fileName = "screenshot_" + elapsedTime + ".png";
                 // TODO output block distance and id to file. Implement python screenshot code, take screenshot based on socket communication.
                 try {
-                    InetAddress inetAddress = InetAddress.getLocalHost();
-                    String ipAddress = inetAddress.getHostAddress();
-                    SocketClient sockClient = new SocketClient(ipAddress, 5050); // use the appropriate IP and port
-                    sockClient.startConnection();
-                    sockClient.sendMessage("Block Recognition - BlockState ID: " + label.getBlockStateId() + ", Distance: " + label.getDistance());
-                    sockClient.sendMessage("Take Screenshot");
-                    sockClient.stopConnection();
+                    sockClient.sendMessage("Block Recognition -" + label.getBlockStateString() + " " + label.getDistance() + " " + label.getDistance());
+                    sockClient.sendCommand("Take Screenshot");
                 } catch (IOException e) {
                     e.printStackTrace();
+                }
+                long tickEndTime = System.nanoTime();
+                long elapsedTickTime = (tickEndTime - tickStartTime) / 1_000_000;
+                System.out.println("Elapsed time: " + elapsedTickTime + " ms");
+            }
+        });
+
+        // Registering a shutdown event handler
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            // Client is stopping, close the socket connection here
+            if (sockClient != null) {
+                try {
+                    sockClient.stopConnection();
+                    System.out.println("Socket connection closed successfully.");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    System.out.println("Error closing socket connection.");
                 }
             }
         });
@@ -69,14 +94,20 @@ public class CollectorClient implements ClientModInitializer {
     public class BlockLabel {
         private final Integer blockStateId;
         private final double distance;
+        private final String blockStateString;
 
-        public BlockLabel(Integer blockStateId, double distance) {
+        public BlockLabel(String blockStateString, Integer blockStateId, double distance) {
+            this.blockStateString = blockStateString;
             this.blockStateId = blockStateId;
             this.distance = distance;
         }
 
         public Integer getBlockStateId() {
             return blockStateId;
+        }
+
+        public String getBlockStateString() {
+            return blockStateString;
         }
 
         public double getDistance() {
@@ -105,7 +136,7 @@ public class CollectorClient implements ClientModInitializer {
                 client.player
         ));
 
-        BlockLabel label = new BlockLabel(-1, -1);
+        BlockLabel label = new BlockLabel("None found",-1, -1);
         // Check if a block was hit
         if (hitResult.getType() == BlockHitResult.Type.BLOCK) {
             BlockPos blockPos = hitResult.getBlockPos();
@@ -124,8 +155,7 @@ public class CollectorClient implements ClientModInitializer {
                 // Here you can store or process the blockStateId and distance pair
                 // For example, you might want to print it for now
                 System.out.println("BlockState ID: " + blockStateId + ", Blockstate string: " + blockStateString + ", Distance: " + distance);
-                label = new BlockLabel(blockStateId, distance);
-                writeToCSV(blockStateId, distance);
+                label = new BlockLabel(blockStateString, blockStateId, distance);
             } else {
                 // Handle the case where the block state is not found in the map
                 System.out.println("BlockState not found in the map for: " + blockStateString);
@@ -147,19 +177,5 @@ public class CollectorClient implements ClientModInitializer {
         return stateMap;
     }
 
-    private void writeToCSV(int blockId, double distance) {
-        // Specify the file path for your CSV file
-        String filePath = "block_data.csv";
 
-        try (FileWriter fileWriter = new FileWriter(filePath, true);
-             PrintWriter printWriter = new PrintWriter(fileWriter)) {
-
-            // Format and write the data as a new line in your CSV file
-            printWriter.printf("%d,%.2f%n", blockId, distance);
-
-        } catch (IOException e) {
-            System.out.println("An error occurred while writing to CSV file.");
-            e.printStackTrace();
-        }
-    }
 }

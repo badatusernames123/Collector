@@ -35,7 +35,6 @@ def handle_client(conn, addr):
         if full_msg.strip() == DISCONNECT_MESSAGE:
             connected = False
             print(f'[{addr}] {full_msg}')
-            conn.send('Msg received\n'.encode(FORMAT))
         else:
             message_handler(full_msg.strip(), conn, addr)
 
@@ -44,8 +43,7 @@ def handle_client(conn, addr):
 def message_handler(msg, conn, addr):
     if msg == 'Take Screenshot':
         print(f'[{addr}] {msg}')
-        conn.send('screenshot taken\n'.encode(FORMAT))
-        take_screenshot(f'data/{get_time()}.png')
+        take_screenshot(f'image_data/{get_time()}.png')
     elif msg.startswith('Block Recognition'):
         print(f'[{addr}] {msg}')
         conn.send('Block recognition data stored\n'.encode(FORMAT))
@@ -55,8 +53,9 @@ def message_handler(msg, conn, addr):
         conn.send('Msg received\n'.encode(FORMAT))
     
 
-def store_recognition_data(msg):
-    pass
+def store_recognition_data(data):
+    with open('block_data.txt', 'a') as file:
+        file.write(data + '\n')
         
 def get_time():
     # Get the current time

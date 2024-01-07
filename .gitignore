@@ -40,4 +40,5 @@ replay_*.log
 *.jfr
 
 # data
-src/main/data/
+src/main/block_data.txt
+src/main/image_data
