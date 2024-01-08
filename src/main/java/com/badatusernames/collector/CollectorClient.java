@@ -65,7 +65,7 @@ public class CollectorClient implements ClientModInitializer {
                 String fileName = "screenshot_" + elapsedTime + ".png";
                 // TODO output block distance and id to file. Implement python screenshot code, take screenshot based on socket communication.
                 try {
-                    sockClient.sendMessage("Block Recognition -" + label.getBlockStateString() + " " + label.getDistance() + " " + label.getDistance());
+                    sockClient.sendMessage("Block Recognition -" + label.getBlockStateString() + " " + label.getDistance());
                     sockClient.sendCommand("Take Screenshot");
                 } catch (IOException e) {
                     e.printStackTrace();
